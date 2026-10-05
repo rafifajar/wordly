@@ -2765,7 +2765,7 @@ const hist = {
     return [...r, ...l].sort((a,b)=> b.startedAt.localeCompare(a.startedAt));
   },
   async add(rec){
-    if(this.db){ try{ await this.db.collection("history").add(rec); return "db"; }catch(e){} }
+    if(this.db){ try{ await this.db.add(rec); await this.db.refresh(); return "db"; }catch(e){} }
     this.local.unshift(rec); this.local = this.local.slice(0,300);
     LS.set("bk-history", this.local); renderHistory(); return "local";
   }
@@ -2861,15 +2861,33 @@ $("histBody").addEventListener("click", e=>{
   };
 });
 $("histFilter").addEventListener("change", renderHistory);
+/* ---------- Supabase (riwayat tersimpan di database) ---------- */
+const SB_URL = "https://mnlltvfmkfbosopxlcmv.supabase.co";
+const SB_KEY = "sb_publishable_0qraziWNco3H1-c1yyMbEA_CwT6Ea6_";
+const sbHead = {apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "application/json"};
+const sbDb = {
+  async add(r){
+    const res = await fetch(SB_URL + "/rest/v1/history", {method:"POST", headers:{...sbHead, Prefer:"return=minimal"}, body: JSON.stringify({
+      name:r.name, name_key:r.nameKey, mode:r.mode, category:r.category, category_label:r.categoryLabel,
+      started_at:r.startedAt, ended_at:r.endedAt, duration_sec:r.durationSec,
+      correct:r.correct, total:r.total, attempted:r.attempted, percent:r.percent
+    })});
+    if(!res.ok) throw new Error("save " + res.status);
+  },
+  async refresh(){
+    const res = await fetch(SB_URL + "/rest/v1/history?select=*&order=started_at.desc&limit=500", {headers: sbHead});
+    if(!res.ok) throw new Error("load " + res.status);
+    hist.remote = (await res.json()).map(d=>({
+      name:d.name, nameKey:d.name_key, mode:d.mode, category:d.category, categoryLabel:d.category_label,
+      startedAt:d.started_at, endedAt:d.ended_at, durationSec:d.duration_sec,
+      correct:d.correct, total:d.total, attempted:d.attempted, percent:d.percent
+    }));
+    renderHistory();
+  }
+};
 (async function connectDb(){
-  let db = null;
-  try{ db = window.claude && window.claude.use ? await window.claude.use("db") : null; }catch(e){ db = null; }
-  if(!db){ hist.mode = "local"; renderHistory(); return; }
-  hist.db = db; hist.mode = "db";
-  db.collection("history").orderBy("startedAt","desc").limit(500).onSnapshot(
-    snap=>{ hist.remote = snap.docs.map(d=>d.data()); renderHistory(); },
-    ()=>{ hist.db = null; hist.mode = "local"; renderHistory(); }
-  );
+  try{ await sbDb.refresh(); hist.db = sbDb; hist.mode = "db"; }
+  catch(e){ hist.db = null; hist.mode = "local"; }
   renderHistory();
 })();
 
@@ -2877,7 +2895,7 @@ $("histFilter").addEventListener("change", renderHistory);
 function switchTab(which){
   const map = {learn:["tabLearn","learnView"], gram:["tabGram","gramView"], hist:["tabHist","histView"]};
   Object.entries(map).forEach(([k,[t,v]])=>{ $(t).setAttribute("aria-selected", k===which); $(v).hidden = k!==which; });
-  if(which==="hist") renderHistory();
+  if(which==="hist"){ renderHistory(); if(hist.db) hist.db.refresh().catch(()=>{}); }
   if(which==="gram"){ if(nstate.open) renderNarasi(); else if(gstate.open) renderGramLesson(); else (nstate.mode==="narasi" ? renderNarList() : renderGramList()); }
   window.scrollTo({top:0});
 }
