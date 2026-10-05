@@ -973,6 +973,11 @@ dialog.wiz{max-width:560px;padding:0;overflow:auto}
 .hfilter{display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #DFE6F0;border-radius:999px;padding:0 10px 0 16px;color:#4A5672}
 .hfilter select{border:0;background:transparent;padding:12px 6px;font-weight:700;color:var(--ink);min-width:150px}
 .hfilter:focus-within{border-color:var(--brand)}
+.hdate input{border:0;background:transparent;padding:12px 6px;font:inherit;font-weight:700;color:var(--ink);min-width:140px}
+.hdate input:focus-visible{outline:0}
+.hdate-all{border:0;background:#EEF3FB;color:#4A5672;font:inherit;font-weight:700;font-size:13px;border-radius:999px;padding:6px 12px;cursor:pointer}
+.hdate-all:hover{background:#DFE8F7}
+@media (max-width:760px){.hdate input{flex:1}}
 .hfilter select:focus-visible{outline:0}
 .htable{border:1px solid #E8EDF4;border-radius:22px;overflow:hidden;background:#fff}
 .hhead,.hrow{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(150px,1.1fr) 110px 130px 130px minmax(190px,1.4fr) 100px 40px;gap:14px;align-items:center;padding:0 22px}
@@ -1845,6 +1850,7 @@ html{scroll-padding-top:var(--navh)}
     <div class="hstats-row">
       <div class="hstats" id="stats"></div>
       <label class="hfilter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14c2.8 0 4.8 1.4 5.5 4.5"/></svg><select id="histFilter" aria-label="Filter nama"><option value="">Semua nama</option></select></label>
+      <label class="hfilter hdate"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg><input type="date" id="histDate" aria-label="Filter tanggal"><button type="button" id="histDateAll" class="hdate-all" title="Tampilkan semua tanggal">Semua</button></label>
     </div>
       </div>
     </div>
@@ -2789,6 +2795,8 @@ function renderHistory(){
   sel.innerHTML = `<option value="">Semua nama</option>` + names.map(([k,n])=>`<option value="${esc(k)}">${esc(n)}</option>`).join("");
   sel.value = names.some(([k])=>k===cur) ? cur : "";
   let rows = sel.value ? all.filter(h=>(h.nameKey||norm(h.name))===sel.value) : all;
+  const dv = $("histDate").value;
+  if(dv) rows = rows.filter(h=>localYMD(new Date(h.startedAt))===dv);
   $("histSrc").textContent = hist.mode==="db" ? "Semua orang yang membuka halaman ini melihat riwayat yang sama."
     : hist.mode==="loading" ? "Memuat riwayat…" : "Riwayat disimpan di perangkat ini saja.";
   const n = rows.length;
@@ -2861,6 +2869,10 @@ $("histBody").addEventListener("click", e=>{
   };
 });
 $("histFilter").addEventListener("change", renderHistory);
+function localYMD(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+$("histDate").value = localYMD(new Date());
+$("histDate").addEventListener("change", renderHistory);
+$("histDateAll").addEventListener("click", ()=>{ $("histDate").value = ""; renderHistory(); });
 /* ---------- Supabase (riwayat tersimpan di database) ---------- */
 const SB_URL = "https://mnlltvfmkfbosopxlcmv.supabase.co";
 const SB_KEY = "sb_publishable_0qraziWNco3H1-c1yyMbEA_CwT6Ea6_";
